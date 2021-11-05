@@ -1,0 +1,6 @@
+## 開発環境
+
+- python3.10
+- pipenv (pythonのバージョンさえ合えばpipenv updateで必要なモジュールがインストールできる優れモノ!)
+- github (ソード管理ツール)
+- sqlite3(言わずと知れたデータベース言語、pythonには内蔵されている)
