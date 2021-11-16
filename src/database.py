@@ -13,6 +13,7 @@ class AlreadyExistsError(sqlite3.Error):
     テーブルを作ったが、すでに存在しているときに投げられるエラー
     """
 
+
 class database:
     """
     データベースファイルの操作を行うクラス
@@ -64,6 +65,7 @@ class database:
         logger.info(f"execute: {command}")
         self.c.execute(command)
         return self.c.fetchall()
+
     def commit(self):
         """変更を反映する"""
         self.conn.commit()
@@ -106,10 +108,10 @@ class datatable(database):
             except sqlite3.OperationalError as e:
                 # エラーの種類がすでにテーブルが作られたのが原因ではないとき
                 if str(e) == f"table {self.table_name} already exists":
-                    raise AlreadyExistsError(f"{self.table_name} has already exist")
+                    raise AlreadyExistsError(
+                        f"{self.table_name} has already exist")
                 else:
                     raise e
-                    
 
     def insert(self, value: Tuple, auto_committe: bool = True):
         """
@@ -176,26 +178,44 @@ class datatable(database):
         """
         return self.select()
 
+
 class database_1(datatable):
     """
     在室している人数に関するデータベース
+
+    主キー
+    ------
+    time : int
+        時間
+
+    属性キー
+    -------
+    count : int
+        その時間の最新の在室人数
+    max_count : int
+        その時間の在室人数の最大
     """
-    __last_updated_time : int #最後に更新した時間
+    __last_updated_time: int  # 最後に更新した時間
+
     def __init__(self):
         """
         コンストラクター
         """
         try:
-            super().__init__("test.db","table1","time int, count int, max_count int")
+            # テーブルを初期化する
+            super().__init__("test.db", "table1", "time int primary key, count int, max_count int")
+            # トリガーを設定する(table1の更新後、更新前のmax_countが更新後のcountより小さいならば、更新した時間のmax_countをcountに変更する)
+            self.execute(
+                "create trigger max_counter after update on table1 when old.max_count  < new.count begin update table1 set max_count = count where time=old.time; end")
         except AlreadyExistsError:
             pass
         else:
             for i in range(24):
-                self.insert((i,0,0),False)
+                self.insert((i, 0, 0), False)
             self.commit()
         self.__last_updated_time = -1
 
-    def change_in_room(self,time:int ,count:int):
+    def change_in_room(self, time: int, count: int):
         """
         在室している人の値を変更する
         同時に在室している人の値の最大値を更新する
@@ -207,13 +227,44 @@ class database_1(datatable):
         count : int
             更新する人数
         """
-        if self.__last_updated_time==-1:
-            pass
-    
+        if self.__last_updated_time == -1:  # 初めての更新
+            self.__last_updated_time = time
+        else:  # この時間では初めての更新
+            init_max = self.select('count', f'time={time}')  # 最後の更新時間での在室数
+            logger.info(f"init_max: {init_max}")
+            while(not self.__last_updated_time == time):
+                next_time = (self.__last_updated_time+1) % 24  # 次の時間
+                # 最後の更新時間の次の時間の最大を最後の更新時間での在室数に
+                self.update('max_count', init_max, f'time={next_time}')
+                # 最後の更新時間の次の時間の在室数を最後の更新時間での在室数に
+                self.update('count', init_max, f'time={next_time}')
+                self.__last_updated_time = next_time
+
+        self.update('count', count, f'time={time}')  # この時間の在室数を更新
+        # 最大値を更新(トリガーで行われる)
+
+    def get_max_in_room(self, time: int) -> int:
+        """
+        時間がtime[h]の時の、在室している人数の最大値を取得する
+
+        Parameters
+        ----------
+        time : int
+            在室している人数の最大を取得したい時間
+
+        Returns
+        -------
+        max_count: int
+            時間がtime[h]の時の、在室している人数の最大値
+        """
+        max_count = self.select('max_count', f'time={time}')
+        res, = max_count[0]
+        return res
+
 
 if __name__ == '__main__':
     from logging_setting import set_logger
-    
+
     set_logger()
     data2 = datatable('test.db', 'articles',
                       'id int, title varchar(1024), body text, created datetime')
@@ -225,5 +276,6 @@ if __name__ == '__main__':
     data2.update("title", "チーズ", 'id=1')
     print(data2.select())
     data2.execute('drop table articles')
-    data3=database_1()
-    
+    data3 = database_1()
+    print(data3.show())
+    print(data3.get_max_in_room(0))
