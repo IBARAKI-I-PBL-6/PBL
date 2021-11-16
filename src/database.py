@@ -170,6 +170,12 @@ class datatable(database):
         if auto_committe:
             self.commit()  # 変更を反映する
 
+    def show(self):
+        """
+        テーブルの内容を返す
+        """
+        return self.select()
+
 class database_1(datatable):
     """
     在室している人数に関するデータベース
@@ -179,11 +185,15 @@ class database_1(datatable):
         """
         コンストラクター
         """
-        self.__last_updated_time=-1
-        super().__init__("test.db","table1","time int, count int, max_count int")
-        for i in range(24):
-            self.insert((i,0,0),False)
-        self.commit()
+        try:
+            super().__init__("test.db","table1","time int, count int, max_count int")
+        except AlreadyExistsError:
+            pass
+        else:
+            for i in range(24):
+                self.insert((i,0,0),False)
+            self.commit()
+        self.__last_updated_time = -1
 
     def change_in_room(self,time:int ,count:int):
         """
