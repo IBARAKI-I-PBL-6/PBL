@@ -8,6 +8,11 @@ from typing import Tuple
 logger = getLogger(__name__)
 
 
+class AlreadyExistsError(sqlite3.Error):
+    """
+    テーブルを作ったが、すでに存在しているときに投げられるエラー
+    """
+
 class database:
     """
     データベースファイルの操作を行うクラス
@@ -59,6 +64,9 @@ class database:
         logger.info(f"execute: {command}")
         self.c.execute(command)
         return self.c.fetchall()
+    def commit(self):
+        """変更を反映する"""
+        self.conn.commit()
 
 
 class datatable(database):
@@ -97,8 +105,11 @@ class datatable(database):
                     f'created : {self.database_name} :: {self.table_name}')
             except sqlite3.OperationalError as e:
                 # エラーの種類がすでにテーブルが作られたのが原因ではないとき
-                if not str(e) == f"table {self.table_name} already exists":
+                if str(e) == f"table {self.table_name} already exists":
+                    raise AlreadyExistsError(f"{self.table_name} has already exist")
+                else:
                     raise e
+                    
 
     def insert(self, value: Tuple, auto_committe: bool = True):
         """
@@ -113,7 +124,7 @@ class datatable(database):
         """
         self.execute(f"insert into {self.table_name} values {value}")
         if auto_committe:
-            self.conn.commit()  # 変更を反映する
+            self.commit()  # 変更を反映する
 
     def select(self, column: str = '*', filter: str = None):
         """
@@ -157,11 +168,42 @@ class datatable(database):
 
         self.execute(f"update {self.table_name} set {column} = {value} {mod}")
         if auto_committe:
-            self.conn.commit()  # 変更を反映する
+            self.commit()  # 変更を反映する
 
+class database_1(datatable):
+    """
+    在室している人数に関するデータベース
+    """
+    __last_updated_time : int #最後に更新した時間
+    def __init__(self):
+        """
+        コンストラクター
+        """
+        self.__last_updated_time=-1
+        super().__init__("test.db","table1","time int, count int, max_count int")
+        for i in range(24):
+            self.insert((i,0,0),False)
+        self.commit()
+
+    def change_in_room(self,time:int ,count:int):
+        """
+        在室している人の値を変更する
+        同時に在室している人の値の最大値を更新する
+
+        Paramters
+        ---------
+        time : int
+            更新したい時間
+        count : int
+            更新する人数
+        """
+        if self.__last_updated_time==-1:
+            pass
+    
 
 if __name__ == '__main__':
     from logging_setting import set_logger
+    
     set_logger()
     data2 = datatable('test.db', 'articles',
                       'id int, title varchar(1024), body text, created datetime')
@@ -173,3 +215,5 @@ if __name__ == '__main__':
     data2.update("title", "チーズ", 'id=1')
     print(data2.select())
     data2.execute('drop table articles')
+    data3=database_1()
+    
