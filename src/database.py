@@ -217,7 +217,7 @@ class database_1(datatable):
 
     def change_in_room(self, time: int, count: int):
         """
-        在室している人の値を変更する
+        time[h]に在室している人の値をcountに変更する
         同時に在室している人の値の最大値を更新する
 
         Paramters
@@ -227,10 +227,13 @@ class database_1(datatable):
         count : int
             更新する人数
         """
+        
         if self.__last_updated_time == -1:  # 初めての更新
+            init_max = 0
             self.__last_updated_time = time
         else:  # この時間では初めての更新
-            init_max = self.select('count', f'time={time}')  # 最後の更新時間での在室数
+            init_max, = self.select('count', f'time={self.__last_updated_time}')[
+                0]  # 最後の更新時間での在室数
             logger.info(f"init_max: {init_max}")
             while(not self.__last_updated_time == time):
                 next_time = (self.__last_updated_time+1) % 24  # 次の時間
@@ -241,6 +244,60 @@ class database_1(datatable):
                 self.__last_updated_time = next_time
 
         self.update('count', count, f'time={time}')  # この時間の在室数を更新
+        # 最大値を更新(トリガーで行われる)
+
+    def change_in_room_increase(self, time: int):
+        """
+        time[h]に在室している人の値を一人増やす
+        同時に在室している人の値の最大値を更新する
+
+        Paramters
+        ---------
+        time : int
+            更新したい時間
+        """
+        if self.__last_updated_time == -1:  # 初めての更新
+            init_max = 0
+            self.__last_updated_time = time
+        else:  # この時間では初めての更新
+            init_max, = self.select('count', f'time={self.__last_updated_time}')[
+                0]  # 最後の更新時間での在室数
+            logger.info(f"init_max: {init_max}")
+            while(not self.__last_updated_time == time):
+                next_time = (self.__last_updated_time+1) % 24  # 次の時間
+                # 最後の更新時間の次の時間の最大を最後の更新時間での在室数に
+                self.update('max_count', init_max, f'time={next_time}')
+                # 最後の更新時間の次の時間の在室数を最後の更新時間での在室数に
+                self.update('count', init_max, f'time={next_time}')
+                self.__last_updated_time = next_time
+
+        self.update('count', init_max+1, f'time={time}')  # この時間の在室数を更新
+        # 最大値を更新(トリガーで行われる)
+
+    def change_in_room_decrease(self, time: int):
+        """
+        time[h]に在室している人の値を一人減らす
+
+        Paramters
+        ---------
+        time : int
+            更新したい時間
+        """
+        if self.__last_updated_time == -1:  # 初めての更新
+            self.__last_updated_time = time
+        else:  # この時間では初めての更新
+            init_max, = self.select('count', f'time={self.__last_updated_time}')[
+                0]  # 最後の更新時間での在室数
+            logger.info(f"init_max: {init_max}")
+            while(not self.__last_updated_time == time):
+                next_time = (self.__last_updated_time+1) % 24  # 次の時間
+                # 最後の更新時間の次の時間の最大を最後の更新時間での在室数に
+                self.update('max_count', init_max, f'time={next_time}')
+                # 最後の更新時間の次の時間の在室数を最後の更新時間での在室数に
+                self.update('count', init_max, f'time={next_time}')
+                self.__last_updated_time = next_time
+
+        self.update('count', init_max-1, f'time={time}')  # この時間の在室数を更新
         # 最大値を更新(トリガーで行われる)
 
     def get_max_in_room(self, time: int) -> int:
@@ -259,6 +316,23 @@ class database_1(datatable):
         """
         max_count = self.select('max_count', f'time={time}')
         res, = max_count[0]
+        return res
+    def get_count_in_room(self, time: int) -> int:
+        """
+        時間がtime[h]の時の、在室している人数の最新の値を取得する
+
+        Parameters
+        ----------
+        time : int
+            在室している人数の最大を取得したい時間
+
+        Returns
+        -------
+        count: int
+            時間がtime[h]の時の、在室している人数の最新値
+        """
+        count = self.select('count', f'time={time}')
+        res, = count[0]
         return res
 
 
