@@ -10,7 +10,7 @@ logger = getLogger(__name__)
 
 class AlreadyExistsError(sqlite3.Error):
     """
-    テーブルを作ったが、すでに存在しているときに投げられるエラー
+    テーブルを作ったが、すでに存在しているときに投げられるエラー(sqlite3.Errorから継承)
     """
 
 
@@ -28,7 +28,7 @@ class database:
 
         Parameters
         ---------
-            data_neme : str
+        data_name : str
             開くデータベースファイルの名前
         """
         self.database_name = data_name
@@ -47,7 +47,7 @@ class database:
         """
         SQLコマンドを実行する
 
-        Paramters
+        Parameters
         ---------
         command : str
             実行コマンド
@@ -82,7 +82,7 @@ class datatable(database):
         コンストラクタ
         テーブルオブジェクトを作成する
 
-        Paramters
+        Parameters
         ---------
         database_name :str
             データベースのファイル名
@@ -117,11 +117,11 @@ class datatable(database):
         """
         インスタンスを追加する
 
-        Paramters
+        Parameters
         ---------
-        value : (any)
+        value : (Tuple)
             追加するインスタンス
-        auto_committe:bool (defalt = True)
+        auto_committe : bool (defalt = True)
             値の追加後に自動でコミットするか
         """
         self.execute(f"insert into {self.table_name} values {value}")
@@ -132,7 +132,7 @@ class datatable(database):
         """
         インスタンスを抽出して返す
 
-        Paramters
+        Parameters
         ---------
         column : str (defalt ='*')
             取り出したい属性
@@ -152,7 +152,7 @@ class datatable(database):
         """
         タプルの値を変更する
 
-        Paramters
+        Parameters
         ---------
         column : str
             変更したい属性(一つのみ)
@@ -175,6 +175,11 @@ class datatable(database):
     def show(self):
         """
         テーブルの内容を返す
+
+        Returns
+        -------
+        res : [Tuple]
+            テーブルの内容
         """
         return self.select()
 
@@ -220,7 +225,7 @@ class database_1(datatable):
         time[h]に在室している人の値をcountに変更する
         同時に在室している人の値の最大値を更新する
 
-        Paramters
+        Parameters
         ---------
         time : int
             更新したい時間
@@ -251,7 +256,7 @@ class database_1(datatable):
         time[h]に在室している人の値を一人増やす
         同時に在室している人の値の最大値を更新する
 
-        Paramters
+        Parameters
         ---------
         time : int
             更新したい時間
@@ -278,7 +283,7 @@ class database_1(datatable):
         """
         time[h]に在室している人の値を一人減らす
 
-        Paramters
+        Parameters
         ---------
         time : int
             更新したい時間
@@ -370,7 +375,7 @@ class database_2(datatable):
         """
         time[h]に出入りした人数の値をcountに変更する
 
-        Paramters
+        Parameters
         ---------
         time : int
             更新したい時間
@@ -401,7 +406,7 @@ class database_2(datatable):
         """
         time[h]に出入りした人数の値を1加算する
 
-        Paramters
+        Parameters
         ---------
         time : int
             変更したい時間
@@ -413,7 +418,7 @@ class database_2(datatable):
         """
         time[h]に出入りした人数の値を0にする
 
-        Paramters
+        Parameters
         ---------
         time : int
             変更したい時間
