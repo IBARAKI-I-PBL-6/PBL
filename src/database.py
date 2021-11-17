@@ -106,7 +106,7 @@ class datatable(database):
                 logger.info(
                     f'created : {self.database_name} :: {self.table_name}')
             except sqlite3.OperationalError as e:
-                # エラーの種類がすでにテーブルが作られたのが原因ではないとき
+                # エラーの種類がすでにテーブルが作られたのが原因であるとき
                 if str(e) == f"table {self.table_name} already exists":
                     raise AlreadyExistsError(
                         f"{self.table_name} has already exist")
@@ -227,7 +227,7 @@ class database_1(datatable):
         count : int
             更新する人数
         """
-        
+
         if self.__last_updated_time == -1:  # 初めての更新
             init_max = 0
             self.__last_updated_time = time
@@ -317,6 +317,7 @@ class database_1(datatable):
         max_count = self.select('max_count', f'time={time}')
         res, = max_count[0]
         return res
+
     def get_count_in_room(self, time: int) -> int:
         """
         時間がtime[h]の時の、在室している人数の最新の値を取得する
@@ -334,6 +335,90 @@ class database_1(datatable):
         count = self.select('count', f'time={time}')
         res, = count[0]
         return res
+
+
+class database_2(datatable):
+    """
+    出入りした人数に関するデータベース
+
+    主キー
+    ------
+    time : int
+        時間
+
+    属性キー
+    -------
+    count : int
+        その時間での出入りの階数
+    """
+
+    def __init__(self):
+        """
+        コンストラクター
+        """
+        try:
+            # テーブルを初期化する
+            super().__init__("test.db", "table2", "time int primary key, count int")
+        except AlreadyExistsError:
+            pass
+        else:
+            for i in range(24):
+                self.insert((i, 0), False)
+            self.commit()
+
+    def change_total_room(self, time: int, count: int):
+        """
+        time[h]に出入りした人数の値をcountに変更する
+
+        Paramters
+        ---------
+        time : int
+            更新したい時間
+        count : int
+            更新する人数
+        """
+        self.update('count', count, f'time={time}')  # この時間の出入り数を更新
+
+    def get_total_room(self, time: int) -> int:
+        """
+        時間がtime[h]の時の、出入りした人数を取得する
+
+        Parameters
+        ----------
+        time : int
+            出入りした人数を取得したい時間
+
+        Returns
+        -------
+        count: int
+            時間がtime[h]の時の、 出入りした人数の値
+        """
+        count = self.select('count', f'time={time}')
+        res, = count[0]
+        return res
+
+    def change_total_room_increase(self, time: int):
+        """
+        time[h]に出入りした人数の値を1加算する
+
+        Paramters
+        ---------
+        time : int
+            変更したい時間
+        """
+        self.update('count', self.get_total_room(
+            time)+1, f'time={time}')  # この時間の出入り数を更新
+
+    def reset_total_room_increase(self, time: int):
+        """
+        time[h]に出入りした人数の値を0にする
+
+        Paramters
+        ---------
+        time : int
+            変更したい時間
+        """
+        self.update('count', 0, f'time={time}')  # この時間の出入り数を更新
 
 
 if __name__ == '__main__':
