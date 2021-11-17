@@ -113,6 +113,7 @@ def test_database_1_step(init):
         data1.change_in_room_increase(0)
     assert data1.show()[0] == (0, 40, 40)
 
+
 def test_database_1_two_hour(init):
     """
     2時間にわたって人数を変化したときのテスト
@@ -121,11 +122,57 @@ def test_database_1_two_hour(init):
     assert data1.show()[0] == (0, 0, 0)
     data1.change_in_room_increase(0)
     data1.change_in_room_increase(0)
-    assert data1.show()[0]==(0,2,2)
+    assert data1.show()[0] == (0, 2, 2)
     data1.change_in_room_decrease(1)
-    assert data1.show()[1]==(1,1,2)
+    assert data1.show()[1] == (1, 1, 2)
     data1.change_in_room_increase(1)
     data1.change_in_room_increase(1)
-    assert data1.show()[1]==(1,3,3)
+    assert data1.show()[1] == (1, 3, 3)
     data1.change_in_room_increase(2)
-    assert data1.show()[2]==(2,4,4)
+    assert data1.show()[2] == (2, 4, 4)
+
+
+def test_database_1_stay(init):
+    """
+    1時間以上、人数が変化しないときのテスト
+    """
+    data1 = init['data1']
+    assert data1.show()[0] == (0, 0, 0)
+    data1.change_in_room_increase(0)
+    data1.change_in_room_increase(0)
+    assert data1.show()[0] == (0, 2, 2)
+    data1.change_in_room_decrease(2)
+    assert data1.show()[1] == (1, 2, 2)
+    assert data1.show()[2] == (2, 1, 2)
+    data1.change_in_room_increase(2)
+    data1.change_in_room_increase(2)
+    assert data1.show()[2] == (2, 3, 3)
+    data1.change_in_room_increase(5)
+    assert data1.show()[2] == (2, 3, 3)
+    assert data1.show()[3] == (3, 3, 3)
+    assert data1.show()[4] == (4, 3, 3)
+    assert data1.show()[5] == (5, 4, 4)
+
+
+def test_database_1_deyond(init):
+    """
+    日をまたぐときののテスト
+    """
+    data1 = init['data1']
+    assert data1.show()[23] == (23, 0, 0)
+    data1.change_in_room_increase(23)
+    assert data1.show()[23] == (23, 1, 1)
+    data1.change_in_room_increase(3)
+    logger.warning(data1.show())
+    assert data1.show()[0] == (0, 1, 1)
+    assert data1.show()[1] == (1, 1, 1)
+    assert data1.show()[2] == (2, 1, 1)
+    assert data1.show()[3] == (3, 2, 2)
+    data1.change_in_room(23,4)
+    assert data1.show()[23] == (23, 4, 4)
+    data1.change_in_room_decrease(3)
+    logger.warning(data1.show())
+    assert data1.show()[0] == (0, 4, 4)
+    assert data1.show()[1] == (1, 4, 4)
+    assert data1.show()[2] == (2, 4, 4)
+    assert data1.show()[3] == (3, 3, 4)
