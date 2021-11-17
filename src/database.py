@@ -409,7 +409,7 @@ class database_2(datatable):
         self.update('count', self.get_total_room(
             time)+1, f'time={time}')  # この時間の出入り数を更新
 
-    def reset_total_room_increase(self, time: int):
+    def reset_total_room(self, time: int):
         """
         time[h]に出入りした人数の値を0にする
 

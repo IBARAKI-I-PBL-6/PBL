@@ -27,7 +27,6 @@ def test_database_1_init(init):
     logger.warning(out)
     for i in range(24):
         assert(out[i] == (i, 0, 0))
-    return True
 
 
 def test_database_1_single(init):
