@@ -2,9 +2,10 @@
 データベースに関するクラス
 """
 import sqlite3
-from sqlite3.dbapi2 import Connection, Cursor
 from logging import getLogger
+from sqlite3.dbapi2 import Connection, Cursor
 from typing import Tuple
+
 logger = getLogger(__name__)
 
 
