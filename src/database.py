@@ -3,8 +3,8 @@
 """
 import sqlite3
 from logging import getLogger
-from sqlite3.dbapi2 import Connection, Cursor
-from typing import Tuple
+from sqlite3 import Connection, Cursor
+from typing import List, Tuple
 
 logger = getLogger(__name__)
 
@@ -170,6 +170,28 @@ class datatable(database):
             value = f"'{value}'"
 
         self.execute(f"update {self.table_name} set {column} = {value} {mod}")
+        if auto_committe:
+            self.commit()  # 変更を反映する
+
+    def delate(self, filter: str, auto_committe: bool = True):
+        """
+        タプルの値を変更する
+
+        Parameters
+        ---------
+        column : str
+            変更したい属性(一つのみ)
+        value : any
+            変更する値
+        filter : str
+            変更するインスタンスの条件
+        auto_committe : bool (defalt : True)
+            値の追加後に自動でコミットするか
+        """
+        mod = '' if filter is None else f'where {filter}'  # 絞り込みの条件を作る
+
+
+        self.execute(f"deldate from {self.table_name} {mod}")
         if auto_committe:
             self.commit()  # 変更を反映する
 
@@ -427,6 +449,144 @@ class database_2(datatable):
         self.update('count', 0, f'time={time}')  # この時間の出入り数を更新
 
 
+class database_sql_instance:
+    """
+    databasea_sqlのインスタンス1つ分を格納するクラス
+
+    Attributes
+    ---------
+    id : int
+        通し番号
+    enter : int
+        一時間の総入室人数
+    max_in_room : int
+        一時間の在室人数の最大
+    alert :int
+        総警告回数
+    """
+    id: int
+    enter: int
+    max_in_room: int
+    alert: int
+
+    def __init__(self, id: int, enter: int, max_in_room: int, alert: int):
+        """
+        データの初期化
+
+        Parameters
+        ---------
+        id : int
+            通し番号
+        enter : int
+            一時間の総入室人数
+        max_in_room : int
+            一時間の在室人数の最大
+        alert :int
+            総警告回数
+        """
+        # 各値を順番の代入する
+        self.id=id
+        self.enter = enter
+        self.max_in_room=max_in_room
+        self.alert = alert
+
+
+class database_sql(datatable):
+
+    """
+    一時間ごとの入室人数、最大在室人数、総警告回数に関するデータベース
+
+    主キー
+    ------
+    id : int
+        入力の通し番号
+
+    属性キー
+    -------
+    enter : int
+        その時間の総入室人数
+    max_in_room : int
+        その時間の在室人数の最大
+    """
+    __update_counter: int  # データを追加した回数
+    ROTATE_DAYS = 30  # データを保存する日数
+
+    def __init__(self):
+        """
+        コンストラクター
+        """
+        try:
+            # テーブルを初期化する
+            super().__init__("test.db", "database_sql",
+                             "id int , enter int, max_in_room int , alert int")
+        except AlreadyExistsError:
+            pass
+        self.__update_counter = 0
+
+    def add_datas(self, enter: List[int], max_in_room: List[int], alert: List[int]):
+        """
+        データを追加する
+
+        Parameters
+        ---------
+        enter : List[int]
+            各時間ごとの総入室人数[人]
+        max_in_room : List[int]
+            各時間ごとの最大在室人数[人]
+        alert : List[int]
+            各時間ごとの総警告回数[回]
+
+        Requirement
+        -----------
+        - len(enter) == len(max_in_room) == len(alert) (各引数の要素数は同じ)
+        - len(enter) < 24 (引数の要素数は24以下)
+
+        Raises
+        ------
+        RuntimeError
+            len(enter) != len(max_in_room) の時、もしくは　len(enter) != len(alert)のとき
+        """
+        # len(enter) == len(max_in_room) == len(alert)かどうか確かめる
+        if len(enter) != len(max_in_room) or len(max_in_room) != len(alert):
+            # さもなければ RuntimeErrorを投げる
+            raise RuntimeError("len(enter) != len(max_in_room) != len (alert)")
+        
+
+        
+        # idがself.__update_counter*24 以上(self.__update_counter+1)*24+未満のインスタンスを削除する
+        self.delate(f'(id >= {self.__update_counter*24}) and ( id < {(self.__update_counter+1)*24})')
+
+        # len(enter) 回繰り返す(i):
+        for i in range(len(enter)):
+        #   id をself.__update_counter *24 + iにする
+            id=self.__update_counter *24 + i
+            #   (id, enter[i],max_in_room[i], alert[i])を追加する
+            self.insert((id,enter[i],max_in_room[i],alert[i]))
+        # self.__update_counterを1加算して、それをself.ROTATE_DAYSで割ったあまりにする
+        self.__update_counter = (self.__update_counter +1) %self.ROTATE_DAYS
+    def get_data(self, id: int):
+        """
+        id がidであるインスタンスを取得する
+
+        Parameters
+        ---------
+        id : int
+            取得したいデータのidの値 (検討中)
+
+        Returns
+        -------
+        result : database_sql_instance
+            データのidがidであるインスタンスを格納したクラス
+        """
+
+        #id,enter, max_in_room,alertにidがidであるときの値を代入する
+        id,enter,max_in_room,alert = self.select(filter=f'id={id}')[0]
+        # database_sql_instanceのインスタンスを作成する、引数は、先ほど取得した変数の順
+        res=database_sql_instance(id,enter,max_in_room,alert)
+        # 先ほどのインスタンスを返す
+        return res
+
+
 if __name__ == '__main__':
     from logging_setting import set_logger
 
@@ -439,7 +599,8 @@ if __name__ == '__main__':
     c = data2.select()
     print(c)
     data2.update("title", "チーズ", 'id=1')
-    print(data2.select())
+    print("daa2")
+    print(data2.select(filter='id=2'))
     data2.execute('drop table articles')
     data3 = database_1()
     print(data3.show())

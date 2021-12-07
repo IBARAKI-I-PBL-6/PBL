@@ -18,7 +18,7 @@ Notes
 """
 
 import logging.config
-
+import logging
 logger = logging.getLogger()
 
 
@@ -29,5 +29,5 @@ def set_logger():
     実行用の関数で最初に呼び出す
     """
 
-    logging.config.fileConfig("logging.conf", disable_existing_loggers=False,
-                              encoding="UTF-8")  # logging.confからログの表示設定を読み込む
+    logging.config.fileConfig("logging.conf", disable_existing_loggers=True,
+                            )  # logging.confからログの表示設定を読み込む
