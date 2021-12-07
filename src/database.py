@@ -190,8 +190,7 @@ class datatable(database):
         """
         mod = '' if filter is None else f'where {filter}'  # 絞り込みの条件を作る
 
-
-        self.execute(f"deldate from {self.table_name} {mod}")
+        self.execute(f"DELETE from {self.table_name} {mod}")
         if auto_committe:
             self.commit()  # 変更を反映する
 
