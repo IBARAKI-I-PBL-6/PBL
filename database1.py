@@ -14,6 +14,11 @@ def warn(): #シリアル通信
       ser.write("warning")
       ser.close()
 
+def reset(): #人数リセット
+    manage_number_of_people.max_people=0
+    database_sql.total_people_list[date.how-1]=0
+    database_sql.count_warning_list[date.how-1]=0
+
 
 date=datetime.datetime.now()#現在時刻を取得
 
@@ -24,12 +29,11 @@ while date<endtime: #終了時間まで
         manage_number_of_people.max_people=manage_number_of_people.now_people
     if manage_number_of_people.now_people>standard: #基準以上
         database_sql.count_warning_list[date.how]+=1
-        database_sql.count_warning+=1
         warn()
     if now_time-starttime==1: #一時間経過
         database_sql.max_people_list[date.how-1]=manage_number_of_people.max_people
-        add_datas(total_people_list[date.how-1],database_sql.max_people_list[date.how-1],database_sql.count_warning_list[date.how-1])
-        manage_number_of_people.max_people=0
-        if database_sql.max_people_list[date.how]>50 or database_sql.count_warning_list[date.how]>5 : #適当
+        add_datas(database_sql.total_people_list[date.how-1],database_sql.max_people_list[date.how-1],database_sql.count_warning_list[date.how-1])
+        reset()
+        if database_sql.max_people_list[date.how]>50 or database_sql.count_warning_list[date.how]>5 :
             warn()
         starttime=datetime.datetime.now() #開始時刻を更新
