@@ -20,10 +20,10 @@ def reset(): #人数リセット
     database_sql.count_warning_list[date.how-1]=0
 
 
-date=datetime.datetime.now()#現在時刻を取得
+date=datetime.datetime.now.hour()#現在時刻を取得
 
-while date<endtime: #終了時間まで
-    date=datetime.datetime.now() #現在時刻を取得
+while date.hour<endtime: #終了時間まで
+    date=datetime.datetime.now.hour() #現在時刻を取得
 
     if manage_number_of_people.now_people>manage_number_of_people.max_people: #最大人数の更新
         manage_number_of_people.max_people=manage_number_of_people.now_people
@@ -36,4 +36,4 @@ while date<endtime: #終了時間まで
         reset()
         if database_sql.max_people_list[date.how]>50 or database_sql.count_warning_list[date.how]>5 :
             warn()
-        starttime=datetime.datetime.now() #開始時刻を更新
+        starttime=datetime.datetime.now.hour() #開始時刻を更新
