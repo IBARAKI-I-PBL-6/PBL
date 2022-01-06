@@ -100,15 +100,31 @@ class serial_transmission:
         self.ser.close()
         self.isOpen = False
     
-    def predict_and_warn(self, sql:database_sql, index:int,
-                         alert:int, max:int, enter:int):
-        data = sql.get_data(index)
-        if data.alert > alert:
-            self.send('w')
-        elif data.max_in_room > max:
-            self.send('w')
-        elif data.enter > enter:
-            self.send('w')
+    def predict_and_warn(self, sql:database_sql, index:int):
+        m_alert, m_max, m_enter = 0, 0, 0
+        counter = 0
+        #最大30日
+        while True:
+            try:
+                data = sql.get_data(index)
+            except:
+                break
+            m_alert += data.alert
+            m_max += data.max_in_room
+            m_enter += data.enter
+            index += 24
+            counter += 1
+        
+        if counter != 0:
+            if m_alert / counter >= 1:
+                self.send('w')
+                self.isWarn = True
+            elif m_max / counter >= 50:
+                self.send('w')
+                self.isWarn = True
+            elif m_enter / counter >= 50:
+                self.send('w')
+                self.isWarn = True
     
 #並列に扱うため、tmp_databaseのインスタンスを引数にとる
     def keep_waiting_signal(self, end_time:int,
@@ -116,6 +132,7 @@ class serial_transmission:
                             sql:database_sql, isExistSql = False):
         self.send('d')
         func_time = dt.datetime.now().hour
+        index = 0
         while (now := dt.datetime.now().hour) < end_time:
             if (rec := self.receive()) == '':
                 pass
@@ -134,7 +151,8 @@ class serial_transmission:
                 self.isWarn = False
             #sqlDBから値を取得、基準以上なら事前に警告を行うコード
             if isExistSql and now - func_time > 0:
-                self.predict_and_warn(sql, 0, 3, 50, 100)
+                self.predict_and_warn(sql, index)
+                index = index + 1 if index < 24 else 0
                 func_time += 1
         self.send('e')
         return True
