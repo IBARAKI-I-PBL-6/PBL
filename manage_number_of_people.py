@@ -1,21 +1,21 @@
-#Tell, don't ask
 import serial
 import time
-from multiprocessing import Process, Value, Manager, Queue
+from multiprocessing import Process, Value, Queue, Array
 from serial.tools import list_ports
+import datetime as dt
+import database_sql
 
 
 class tmp_database:
     """一日毎のデータを管理"""
 
     def __init__(self):
-        self.manager = Manager()
-        self.people_num_dict = {'now_people':self.manager.Value('i', 0), 'max_people':self.manager.Value('i', 0)
-                                                                       , 'total_people':self.manager.Value('i', 0)
-                                                                       , 'count_warning':self.manager.Value('i', 0)}
+        self.people_num_dict = {'now_people':Value('i', 0), 'max_people':Value('i', 0),
+                                'total_people':Value('i', 0), 'count_warning':Value('i', 0)}
         
-        self.people_num_list_dict = {'max_people_list':self.manager.list(), 'total_people_list':self.manager.list()
-                                                                          , 'count_warning_list':self.manager.list()}
+        self.people_num_list_dict = {'max_people_list':Array('i', 9), 'total_people_list':Array('i', 9),
+                                     'count_warning_list':Array('i', 9)}
+        self.signal_list = Queue()
         
 
     def increment_people_num(self, variable:str):
@@ -27,8 +27,12 @@ class tmp_database:
     def substitution_people_num(self, variable:str, value:int):
         self.people_num_dict[variable].value = value
     
-    def append_people_num_list(self, variable:str, var_list:str):
-        self.people_num_list_dict[var_list].append(self.people_num_dict[variable].value)
+    def append_people_num_list(self, variable:str, var_list:str, index:int):
+        if index <= 8:
+            print(f'append:{self.people_num_dict[variable].value}')
+            self.people_num_list_dict[var_list][index] = self.people_num_dict[variable].value
+        else:
+            print('index_error')
     
     def initialize_people_num(self, value:int):
         for key in self.people_num_dict.keys():
@@ -37,15 +41,34 @@ class tmp_database:
     def show(self):
         for key in self.people_num_dict.keys():
             print(f'{key}:{self.people_num_dict[key].value}')
+        for key in self.people_num_list_dict.keys():
+            for i in range(9):
+                print(f'{key}[{i}]:{self.people_num_list_dict[key][i]}')
+    
+    def put(self, variable):
+        self.signal_list.put(variable)
+    
+    def get(self) -> str:
+        try:
+            rec = self.signal_list.get(block=False)
+        except:
+            return None
+        return rec
+    
+    def getter(self, variable:str):
+        return self.people_num_dict[variable].value
 
 
+#serialオブジェクトはpickle化不可能、メインプロセスで実行
+#tmp_database更新関数を独立させ、pickle化可能にする
 class serial_transmission:
     """シリアル通信を行う"""
     def __init__(self, baudrate:int=115200):
         self.isOpen = True
+        self.isWarn = False
         self.ser = serial.Serial()
         self.ser.baudrate = baudrate
-        self.ser.timeout = None
+        self.ser.timeout = 0.1
         devices = [info.device for info in list_ports.comports()]
         if len(devices) == 0:
             print('エラー:ポートが見つかりませんでした')
@@ -76,56 +99,115 @@ class serial_transmission:
     def close(self):
         self.ser.close()
         self.isOpen = False
-
-class manage_number_of_people:
-    def __init__(self) -> None:
-        self.manager = Manager()
-        self.signal_list = Queue()
-        self._serial = serial_transmission()
-        self.tmp_data = tmp_database()
-        if not self._serial.isOpen:
-            print('シリアル通信に失敗しました')
-            return None
     
-    def keep_waiting_signal(self, operating_time:int, start_time:float):
-        while time.time() - start_time < operating_time:
-            rec = self._serial.receive()
-            print(rec)
-            self.signal_list.put(rec)
-    
-    def renew_tmp_database(self, operating_time:int, standard_time:int, start_time:float):
-        func_start_time = time.time()
-        while time.time() - func_start_time < operating_time:
+    def predict_and_warn(self, sql:database_sql, index:int):
+        m_alert, m_max, m_enter = 0, 0, 0
+        counter = 0
+        #最大30日
+        while True:
             try:
-                signal = self.signal_list.get(block=False)
+                data = sql.get_data(index)
             except:
+                break
+            m_alert += data.alert
+            m_max += data.max_in_room
+            m_enter += data.enter
+            index += 24
+            counter += 1
+        
+        if counter != 0:
+            if m_alert / counter >= 1:
+                self.send('w')
+                self.isWarn = True
+            elif m_max / counter >= 50:
+                self.send('w')
+                self.isWarn = True
+            elif m_enter / counter >= 50:
+                self.send('w')
+                self.isWarn = True
+    
+#並列に扱うため、tmp_databaseのインスタンスを引数にとる
+    def keep_waiting_signal(self, end_time:int,
+                            tmp_data:tmp_database, standard:int,
+                            sql:database_sql, isExistSql = False):
+        self.send('d')
+        func_time = dt.datetime.now().hour
+        index = 0
+        while (now := dt.datetime.now().hour) < end_time:
+            if (rec := self.receive()) == '':
+                pass
+            else:
+                print(rec)
+                tmp_data.put(rec)
+                if rec == 'q':
+                    print('break_waiting')
+                    return False
+            if tmp_data.getter('now_people') > standard and not self.isWarn:
+                self.send('w')
+                self.isWarn = True
+                tmp_data.increment_people_num('count_warning')
+            elif tmp_data.getter('now_people') <= standard and self.isWarn:
+                self.send('s')
+                self.isWarn = False
+            #sqlDBから値を取得、基準以上なら事前に警告を行うコード
+            if isExistSql and now - func_time > 0:
+                self.predict_and_warn(sql, index)
+                index = index + 1 if index < 24 else 0
+                func_time += 1
+        self.send('e')
+        return True
+
+#pickle化できないため、分割
+class manage_number_of_people:
+    def __init__(self):
+        self.isFAULT = False
+    
+#並列に扱うため、tmp_databaseのインスタンスを引数にとる
+    def renew_tmp_database(self, end_time:int,
+                           standard_time:int, tmp_data:tmp_database):
+        func_start_time = dt.datetime.now().hour
+        index = 0
+
+        while (hour := dt.datetime.now().hour) < end_time:
+            if (signal := tmp_data.get()) is None:
                 continue
             if signal == 'i':
-                self.tmp_data.increment_people_num('now_people')
-                self.tmp_data.increment_people_num('total_people')
+                tmp_data.increment_people_num('now_people')
+                tmp_data.increment_people_num('total_people')
             elif signal == 'o':
-                self.tmp_data.decrement_people_num('now_people')
+                tmp_data.decrement_people_num('now_people')
+            elif signal == 'q':
+                print('break_renew')
+                break
             else:
                 print('予期しない値がリストに格納されていました')
-            if time.time() - func_start_time > standard_time:
-                func_start_time = time.time()
-                self.tem_data.append_people_num_list('max_people', 'max_people_list')
-                self.tem_data.append_people_num_list('total_people', 'total_people_list')
-                self.tem_data.append_people_num_list('count_warning', 'count_warning_list')
+                pass
+            if (now := tmp_data.getter('now_people')) > tmp_data.getter('max_people'):
+                tmp_data.substitution_people_num('max_people', now)
+            if hour - func_start_time >= standard_time:
+                func_start_time = dt.datetime().now().hour
+                tmp_data.append_people_num_list('max_people', 'max_people_list', index)
+                tmp_data.append_people_num_list('total_people', 'total_people_list', index)
+                tmp_data.append_people_num_list('count_warning', 'count_warning_list', index)
+                tmp_data.substitution_people_num('max_people', 0)
+                tmp_data.substitution_people_num('total_people', 0)
+                tmp_data.substitution_people_num('count_warning', 0)
+                index += 1
+
 
 if __name__ == '__main__':
-    print('test')
-    ope = manage_number_of_people()
-    start = time.time()
     print('start')
-    if ope is None:
-        print('error')        
-    else:
-        p1=Process(target = ope.keep_waiting_signal, args = (10, start, ))
-        p2=Process(target = ope.renew_tmp_database, args = (10, 1000, start, ))
-        p1.start()
-        p2.start()
-        p1.join()
-        p2.join()
-        ope.tmp_data.show()
-        ope._serial.close()
+    s=manage_number_of_people()
+    m=serial_transmission()
+    tmp=tmp_database()
+    tmp.show()
+    start=time.time()
+    #シリアル通信はメインプロセスで実行
+    p1=Process(target=s.renew_tmp_database, args=(17,1,tmp))
+    p1.start()
+    isInterrupt = m.keep_waiting_signal(17,tmp,10)
+    p1.join()
+    print('ok')
+    print(time.time()-start)
+    tmp.show()
+    m.close()
