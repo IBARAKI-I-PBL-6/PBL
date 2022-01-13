@@ -82,8 +82,8 @@ def test_database_sql_get_mouth(init):
     値の削除を伴うデータの実行
     """
     data = init['data']
-    for i in range(0,40):
-        data.add_datas([i], [i], [i]) #30日目に0に戻る
+    for i in range(0, 40):
+        data.add_datas([i], [i], [i])  # 30日目に0に戻る
     res = data.get_data(0)
     assert res.id == 0
     assert res.enter == 30
